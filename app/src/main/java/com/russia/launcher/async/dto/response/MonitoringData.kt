@@ -1,7 +1,9 @@
+
 package com.russia.launcher.async.dto.response
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import com.russia.launcher.NetworkService
 import retrofit2.Call
 import retrofit2.Callback
@@ -14,70 +16,96 @@ interface MonitoringDataLoaderListener {
     fun monitoringDataLoadedSuccess()
 }
 
-
 data class MonitoringData(
-    var news: List<News> = listOf(),
-    var servers: List<Servers> = listOf()
+    var news: List<News> = emptyList(),
+    var servers: List<Servers> = emptyList()
 ) : Serializable
 
 object ServersList {
-    val file = "servers.dat"
+    const val file = "servers.dat"
 
-    var news: List<News> = listOf()
-    var servers: List<Servers> = listOf()
+    var news: List<News> = emptyList()
+    var servers: List<Servers> = emptyList()
 
-    fun load(activity: Activity, net: NetworkService, listener: MonitoringDataLoaderListener) {
-        val call = net.monitoringData
+    fun load(
+        activity: Activity,
+        net: NetworkService,
+        listener: MonitoringDataLoaderListener
+    ) {
+        try {
+            val call = net.monitoringData
 
-        call?.enqueue(object : Callback<MonitoringData?> {
-            override fun onResponse(call: Call<MonitoringData?>, response: Response<MonitoringData?>) {
-                if (response.isSuccessful) {
-                    val monitoringData = response.body()
+            call.enqueue(object : Callback<MonitoringData?> {
+                override fun onResponse(
+                    call: Call<MonitoringData?>,
+                    response: Response<MonitoringData?>
+                ) {
+                    val data = response.body()
 
-                    news = monitoringData?.news!!
-                    servers = monitoringData.servers
-
-                    saveToFile(activity, monitoringData)
-
-                    listener.monitoringDataLoadedSuccess()
-                    return
+                    if (response.isSuccessful && data != null) {
+                        news = data.news
+                        servers = data.servers
+                        saveToFile(activity, data)
+                        notifyLoaded(listener)
+                    } else {
+                        loadFromFile(activity, listener)
+                    }
                 }
-                loadFromFile(activity, listener)
-            }
 
-            override fun onFailure(call: Call<MonitoringData?>, t: Throwable) {
-                loadFromFile(activity, listener)
-            }
-        })
+                override fun onFailure(
+                    call: Call<MonitoringData?>,
+                    t: Throwable
+                ) {
+                    Log.e("ServersList", "Monitoring request failed", t)
+                    loadFromFile(activity, listener)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e("ServersList", "Could not start monitoring request", e)
+            loadFromFile(activity, listener)
+        }
     }
 
     fun saveToFile(context: Context, data: MonitoringData) {
         try {
-            val fileOutputStream = context.openFileOutput(file, Context.MODE_PRIVATE)
-            val objectOutputStream = ObjectOutputStream(fileOutputStream)
-            objectOutputStream.writeObject(data)
-            objectOutputStream.close()
-            fileOutputStream.close()
-        } catch (ex: Exception) {
-            ex.printStackTrace()
+            context.openFileOutput(file, Context.MODE_PRIVATE).use { output ->
+                ObjectOutputStream(output).use { stream ->
+                    stream.writeObject(data)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ServersList", "Could not save monitoring cache", e)
         }
     }
 
-
-    fun loadFromFile(context: Context, listener: MonitoringDataLoaderListener) {
+    fun loadFromFile(
+        context: Context,
+        listener: MonitoringDataLoaderListener
+    ) {
         try {
-            val fileInputStream = context.openFileInput(file)
-            val objectInputStream = ObjectInputStream(fileInputStream)
-            val data = objectInputStream.readObject() as MonitoringData
-            objectInputStream.close()
-            fileInputStream.close()
+            context.openFileInput(file).use { input ->
+                ObjectInputStream(input).use { stream ->
+                    val data = stream.readObject() as MonitoringData
+                    news = data.news
+                    servers = data.servers
+                }
+            }
+        } catch (e: Exception) {
+            // First launch or missing/corrupt cache: continue with empty data.
+            news = emptyList()
+            servers = emptyList()
+            Log.w("ServersList", "No usable cached monitoring data", e)
+        } finally {
+            // Always release the splash screen loading gate.
+            notifyLoaded(listener)
+        }
+    }
 
-            news = data.news
-            servers = data.servers
-
+    private fun notifyLoaded(listener: MonitoringDataLoaderListener) {
+        try {
             listener.monitoringDataLoadedSuccess()
-        } catch (ex: Exception) {
-            ex.printStackTrace()
+        } catch (e: Exception) {
+            Log.e("ServersList", "Loading callback failed", e)
         }
     }
 }
