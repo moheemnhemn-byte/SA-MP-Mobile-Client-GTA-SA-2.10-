@@ -41,6 +41,7 @@ import java.io.BufferedOutputStream
 import java.util.zip.ZipInputStream
 
 class MainActivity : AppCompatActivity() {
+
     private var animation: Animation? = null
     private var donateButton: LinearLayout? = null
     private var donateImage: ImageView? = null
@@ -65,41 +66,53 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         setTheme(R.style.AppBaseTheme)
 
-//        setContentView(R.layout.spin_box);
-//        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-//        gg = new SpinBox(this);
-        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_IMMERSIVE
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
 
         container_layout = findViewById(R.id.container)
         animation = AnimationUtils.loadAnimation(this, R.anim.button_click)
+
         monitoringTV = findViewById(R.id.monitoringTV)
         settingsTV = findViewById(R.id.settingsTV)
-        rouletteTV = findViewById(R.id.forumTV) 
+        rouletteTV = findViewById(R.id.forumTV)
         donateTV = findViewById(R.id.donateTV)
+
         monitoringImage = findViewById(R.id.monitoringImage)
         settingsImage = findViewById(R.id.settingsImage)
         rouletteImage = findViewById(R.id.forumImage)
         donateImage = findViewById(R.id.donateImage)
         playImage = findViewById(R.id.playImage)
+
         monitoringButton = findViewById(R.id.monitoringButton)
         settingsButton = findViewById(R.id.settingsButton)
         rouletteButton = findViewById(R.id.rouletteButton)
         donateButton = findViewById(R.id.donateButton)
         playButton = findViewById(R.id.playButton)
+
         monitoringFragment = MonitoringFragment()
         settingsFragment = SettingsFragment()
-        if (savedInstanceState != null && savedInstanceState.getBoolean(IS_AFTER_LOADING_KEY)) {
+
+        if (
+            savedInstanceState != null &&
+            savedInstanceState.getBoolean(IS_AFTER_LOADING_KEY)
+        ) {
             replaceFragment(settingsFragment)
-        } else if (savedInstanceState == null && intent.extras != null && intent.extras!!.getBoolean(IS_AFTER_LOADING_KEY)) {
+        } else if (
+            savedInstanceState == null &&
+            intent.extras != null &&
+            intent.extras!!.getBoolean(IS_AFTER_LOADING_KEY)
+        ) {
             onClickSettings()
         } else {
             replaceFragment(monitoringFragment)
         }
+
         monitoringButton!!.setOnClickListener {
             onClickMonitoring()
         }
@@ -113,6 +126,7 @@ class MainActivity : AppCompatActivity() {
             val openlink = Intent(Intent.ACTION_VIEW, address)
             startActivity(openlink)
         }
+
         donateButton!!.setOnClickListener {
             onClickDonate()
         }
@@ -120,77 +134,59 @@ class MainActivity : AppCompatActivity() {
         playButton!!.setOnClickListener {
             onClickPlay()
         }
-
     }
 
     private fun onClickPlay() {
         startGame()
-        /*if (isCheckSkipping) {
-            startGame()
-        } else {
-            val progressDialog = findViewById<ConstraintLayout>(R.id.progressDialog)
-            progressDialog.visibility = View.VISIBLE
-
-            GlobalScope.launch {
-                val filesList = CacheChecker.getInvalidFilesList(this@MainActivity)
-                withContext(Dispatchers.Main) {
-                    doAfterCacheChecked(filesList)
-
-                    progressDialog.visibility = View.GONE
-                }
-            }
-        }*/
     }
 
     private val isCheckSkipping: Boolean
         get() {
             val isTestMode = NativeStorage.getClientProperty("test", this)
-
-            //todo брать из Storage тк static стирается
             return TEST_MODE_ON_VALUE == isTestMode
-    //        return true
         }
 
     private fun doAfterCacheChecked(fileToReload: MutableList<FileInfo>) {
-
         for (file in fileToReload) {
             println("invalid file = ${file.path}")
         }
+
         if (fileToReload.isEmpty()) {
             startGame()
         } else {
             MainUtils.FILES_TO_RELOAD = fileToReload
-
             MainUtils.type = DownloadType.RELOAD_GAME_FILES
             startActivity(Intent(this, LoaderActivity::class.java))
         }
     }
 
+    /*
+     * NAVARA DEVELOPER MODE:
+     * الضغط على PLAY يشغّل عميل اللعبة مباشرةً.
+     * لا نطلب من المطوّر اختيار ZIP في كل مرة.
+     */
     private fun startGame() {
-        // Primeira execução: instala a data pelo próprio app no armazenamento privado.
-        // Isso evita EACCES/FUSE em Android/data.
-        if (!isPrivateGameDataReady()) {
-            selectGameDataZip()
-            return
-        }
-
         launchGameAfterDataReady()
     }
 
+    /*
+     * تُركت دوال تجهيز البيانات القديمة موجودة حتى لا نحذف
+     * وظائف المشروع الحالية. لم تعد شرطاً يمنع الضغط على PLAY.
+     */
     private fun isPrivateGameDataReady(): Boolean {
         val marker = File(filesDir, PRIVATE_DATA_MARKER)
-
-        // Além do marcador, confirma dois arquivos que o GTA realmente usa.
         val americanGxt = File(filesDir, "TEXT/AMERICAN.GXT")
         val mobileTxt = File(filesDir, "texdb/mobile/mobile.txt")
 
-        return marker.exists() && americanGxt.isFile && mobileTxt.isFile
+        return marker.exists() &&
+            americanGxt.isFile &&
+            mobileTxt.isFile
     }
 
     private fun selectGameDataZip() {
         Toast.makeText(
             this,
-            "Selecione o dataparateste.zip",
+            "اختيار ملف اللعبة",
             Toast.LENGTH_LONG
         ).show()
 
@@ -202,7 +198,6 @@ class MainActivity : AppCompatActivity() {
         try {
             startActivityForResult(intent, REQUEST_GAME_DATA_ZIP)
         } catch (e: Exception) {
-            // Alguns gerenciadores não anunciam application/zip corretamente.
             val fallback = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
@@ -212,42 +207,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        if (requestCode != REQUEST_GAME_DATA_ZIP || resultCode != RESULT_OK) {
+        if (
+            requestCode != REQUEST_GAME_DATA_ZIP ||
+            resultCode != RESULT_OK
+        ) {
             return
         }
 
         val uri = data?.data ?: run {
-            ActivityServiceImpl.showErrorMessage("Arquivo ZIP inválido.", this)
+            ActivityServiceImpl.showErrorMessage(
+                "ملف ZIP غير صالح.",
+                this
+            )
             return
         }
 
         try {
-            val takeFlags = data.flags and
-                (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            val takeFlags = data.flags and (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+
             contentResolver.takePersistableUriPermission(uri, takeFlags)
         } catch (_: Exception) {
-            // A permissão temporária desta Activity já é suficiente para a instalação.
+            // الصلاحية المؤقتة قد تكفي لهذه العملية.
         }
 
         installGameDataZip(uri)
     }
 
     private fun installGameDataZip(uri: Uri) {
-        val progressDialog = findViewById<ConstraintLayout>(R.id.progressDialog)
+        val progressDialog =
+            findViewById<ConstraintLayout>(R.id.progressDialog)
+
         progressDialog?.visibility = View.VISIBLE
         playButton?.isEnabled = false
 
         Toast.makeText(
             this,
-            "Instalando a data... não feche o aplicativo.",
+            "جارٍ تجهيز ملفات اللعبة، لا تغلق التطبيق.",
             Toast.LENGTH_LONG
         ).show()
 
         Thread {
-            val traceFile = File(getExternalFilesDir(null), "data_install_trace.txt")
+            val traceFile =
+                File(getExternalFilesDir(null), "data_install_trace.txt")
 
             fun trace(message: String) {
                 try {
@@ -260,7 +271,8 @@ class MainActivity : AppCompatActivity() {
                 File(filesDir, PRIVATE_DATA_MARKER).delete()
 
                 val destinationRoot = filesDir.canonicalFile
-                val destinationPrefix = destinationRoot.path + File.separator
+                val destinationPrefix =
+                    destinationRoot.path + File.separator
 
                 var rootPrefix: String? = null
                 var filesInstalled = 0
@@ -270,7 +282,9 @@ class MainActivity : AppCompatActivity() {
                 trace("DEST=${destinationRoot.absolutePath}")
 
                 val rawInput = contentResolver.openInputStream(uri)
-                    ?: throw IllegalStateException("Não foi possível abrir o ZIP selecionado.")
+                    ?: throw IllegalStateException(
+                        "تعذر فتح ملف ZIP المختار."
+                    )
 
                 BufferedInputStream(rawInput, 1024 * 1024).use { bufferedInput ->
                     ZipInputStream(bufferedInput).use { zip ->
@@ -279,7 +293,9 @@ class MainActivity : AppCompatActivity() {
                         while (true) {
                             val entry = zip.nextEntry ?: break
 
-                            var entryName = entry.name.replace('\\', '/')
+                            var entryName =
+                                entry.name.replace('\\', '/')
+
                             while (entryName.startsWith("/")) {
                                 entryName = entryName.substring(1)
                             }
@@ -289,8 +305,6 @@ class MainActivity : AppCompatActivity() {
                                 continue
                             }
 
-                            // O ZIP atual possui uma pasta externa "dataparateste/".
-                            // Detectamos a primeira pasta automaticamente e removemos esse prefixo.
                             if (rootPrefix == null) {
                                 val firstSlash = entryName.indexOf('/')
                                 rootPrefix = if (firstSlash >= 0) {
@@ -298,12 +312,16 @@ class MainActivity : AppCompatActivity() {
                                 } else {
                                     ""
                                 }
+
                                 trace("ROOT_PREFIX=$rootPrefix")
                             }
 
                             val prefix = rootPrefix ?: ""
                             val relativeName =
-                                if (prefix.isNotEmpty() && entryName.startsWith(prefix)) {
+                                if (
+                                    prefix.isNotEmpty() &&
+                                    entryName.startsWith(prefix)
+                                ) {
                                     entryName.substring(prefix.length)
                                 } else {
                                     entryName
@@ -314,35 +332,42 @@ class MainActivity : AppCompatActivity() {
                                 continue
                             }
 
-                            val output = File(destinationRoot, relativeName).canonicalFile
+                            val output =
+                                File(destinationRoot, relativeName).canonicalFile
 
-                            // Proteção contra caminhos como ../../ fora de filesDir.
                             if (!output.path.startsWith(destinationPrefix)) {
-                                throw SecurityException("Entrada ZIP insegura: $entryName")
+                                throw SecurityException(
+                                    "مسار ZIP غير آمن: $entryName"
+                                )
                             }
 
                             if (entry.isDirectory) {
                                 if (!output.exists() && !output.mkdirs()) {
                                     throw IllegalStateException(
-                                        "Não foi possível criar ${output.absolutePath}"
+                                        "تعذر إنشاء ${output.absolutePath}"
                                     )
                                 }
                             } else {
                                 output.parentFile?.let { parent ->
                                     if (!parent.exists() && !parent.mkdirs()) {
                                         throw IllegalStateException(
-                                            "Não foi possível criar ${parent.absolutePath}"
+                                            "تعذر إنشاء ${parent.absolutePath}"
                                         )
                                     }
                                 }
 
-                                BufferedOutputStream(output.outputStream(), 1024 * 1024).use { out ->
+                                BufferedOutputStream(
+                                    output.outputStream(),
+                                    1024 * 1024
+                                ).use { out ->
                                     while (true) {
                                         val read = zip.read(buffer)
                                         if (read <= 0) break
+
                                         out.write(buffer, 0, read)
                                         bytesInstalled += read
                                     }
+
                                     out.flush()
                                 }
 
@@ -350,7 +375,8 @@ class MainActivity : AppCompatActivity() {
 
                                 if (filesInstalled % 50 == 0) {
                                     trace(
-                                        "PROGRESS files=$filesInstalled bytes=$bytesInstalled last=$relativeName"
+                                        "PROGRESS files=$filesInstalled " +
+                                            "bytes=$bytesInstalled last=$relativeName"
                                     )
                                 }
                             }
@@ -360,15 +386,21 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                val americanGxt = File(filesDir, "TEXT/AMERICAN.GXT")
-                val mobileTxt = File(filesDir, "texdb/mobile/mobile.txt")
+                val americanGxt =
+                    File(filesDir, "TEXT/AMERICAN.GXT")
+                val mobileTxt =
+                    File(filesDir, "texdb/mobile/mobile.txt")
 
                 if (!americanGxt.isFile) {
-                    throw IllegalStateException("TEXT/AMERICAN.GXT não foi instalado.")
+                    throw IllegalStateException(
+                        "ملف TEXT/AMERICAN.GXT غير موجود."
+                    )
                 }
 
                 if (!mobileTxt.isFile) {
-                    throw IllegalStateException("texdb/mobile/mobile.txt não foi instalado.")
+                    throw IllegalStateException(
+                        "ملف texdb/mobile/mobile.txt غير موجود."
+                    )
                 }
 
                 File(filesDir, PRIVATE_DATA_MARKER).writeText(
@@ -386,7 +418,7 @@ class MainActivity : AppCompatActivity() {
 
                     Toast.makeText(
                         this,
-                        "Data instalada. Iniciando o jogo...",
+                        "تم تجهيز ملفات اللعبة.",
                         Toast.LENGTH_LONG
                     ).show()
 
@@ -394,14 +426,16 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 trace(
-                    "FAIL type=${e.javaClass.simpleName} message=${e.message}"
+                    "FAIL type=${e.javaClass.simpleName} " +
+                        "message=${e.message}"
                 )
 
                 runOnUiThread {
                     progressDialog?.visibility = View.GONE
                     playButton?.isEnabled = true
+
                     ActivityServiceImpl.showErrorMessage(
-                        "Falha ao instalar a data: ${e.message}",
+                        "فشل تجهيز الملفات: ${e.message}",
                         this
                     )
                 }
@@ -421,7 +455,9 @@ class MainActivity : AppCompatActivity() {
             File(filesDir, "data/360Default960x720.cfg")
         )
 
-        val source = candidates.firstOrNull { it.isFile && it.length() > 0L } ?: return
+        val source =
+            candidates.firstOrNull { it.isFile && it.length() > 0L }
+                ?: return
 
         try {
             source.inputStream().use { input ->
@@ -434,39 +470,58 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * يجهّز إعدادات العميل ثم يفتح شاشة اللعبة مباشرةً.
+     */
     private fun launchGameAfterDataReady() {
         ensureAdjustableConfig()
-        val log = File(getExternalFilesDir(null).toString() + "/log.txt")
+
+        val log = File(
+            getExternalFilesDir(null).toString() + "/log.txt"
+        )
         log.delete()
 
-        // Mantém o comportamento original do cliente antes de iniciar o GTA.
-        val cinfo = File(getExternalFilesDir(null).toString() + "/CINFO.BIN")
+        val cinfo = File(
+            getExternalFilesDir(null).toString() + "/CINFO.BIN"
+        )
         cinfo.delete()
 
-        val minfo = File(getExternalFilesDir(null).toString() + "/models/MINFO.BIN")
+        val minfo = File(
+            getExternalFilesDir(null).toString() + "/models/MINFO.BIN"
+        )
         minfo.delete()
 
-        val nickname = NativeStorage.getClientProperty("name", this)
+        val nickname =
+            NativeStorage.getClientProperty("name", this)
 
         if (StringUtils.isBlank(nickname)) {
-            ActivityServiceImpl.showErrorMessage("Informe seu nick!", this)
+            ActivityServiceImpl.showErrorMessage(
+                "أدخل اسم اللاعب من الإعدادات أولاً.",
+                this
+            )
             onClickSettings()
             return
         }
 
         /*
-         * Beta Tester:
-         * ignora completamente a lista/monitoramento de servidores russos.
-         * O CNetGame lê estes valores através de CSettings.
+         * إعدادات الاتصال الحالية للمشروع.
+         * هذه القيم لا تنشئ سيرفراً جديداً؛ السيرفر يجب أن يكون متاحاً.
          */
         NativeStorage.addClientProperty("name", nickname, this)
         NativeStorage.addClientProperty("server", "1", this)
         NativeStorage.addClientProperty("ip", SERVER_IP, this)
         NativeStorage.addClientProperty("port", SERVER_PORT, this)
-        NativeStorage.addClientProperty("password", StringUtils.EMPTY, this)
+        NativeStorage.addClientProperty(
+            "password",
+            StringUtils.EMPTY,
+            this
+        )
 
         val intent = Intent(this, Samp::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        intent.flags =
+            Intent.FLAG_ACTIVITY_CLEAR_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+
         startActivity(intent)
         finish()
     }
@@ -493,26 +548,61 @@ class MainActivity : AppCompatActivity() {
         replaceFragment(monitoringFragment)
     }
 
-    fun setTextColor(linearLayout: LinearLayout?, textView: TextView?, imageView: ImageView?) {
+    fun setTextColor(
+        linearLayout: LinearLayout?,
+        textView: TextView?,
+        imageView: ImageView?
+    ) {
         monitoringButton!!.alpha = 0.45f
         settingsButton!!.alpha = 0.45f
         rouletteButton!!.alpha = 0.45f
         donateButton!!.alpha = 0.45f
-        monitoringTV!!.setTextColor(resources.getColor(R.color.menuTextDisable))
-        settingsTV!!.setTextColor(resources.getColor(R.color.menuTextDisable))
-        rouletteTV!!.setTextColor(resources.getColor(R.color.menuTextDisable))
-        donateTV!!.setTextColor(resources.getColor(R.color.menuTextDisable))
-        monitoringImage!!.setColorFilter(resources.getColor(R.color.menuTextDisable), PorterDuff.Mode.SRC_IN)
-        settingsImage!!.setColorFilter(resources.getColor(R.color.menuTextDisable), PorterDuff.Mode.SRC_IN)
-        rouletteImage!!.setColorFilter(resources.getColor(R.color.menuTextDisable), PorterDuff.Mode.SRC_IN)
-        donateImage!!.setColorFilter(resources.getColor(R.color.menuTextDisable), PorterDuff.Mode.SRC_IN)
+
+        monitoringTV!!.setTextColor(
+            resources.getColor(R.color.menuTextDisable)
+        )
+        settingsTV!!.setTextColor(
+            resources.getColor(R.color.menuTextDisable)
+        )
+        rouletteTV!!.setTextColor(
+            resources.getColor(R.color.menuTextDisable)
+        )
+        donateTV!!.setTextColor(
+            resources.getColor(R.color.menuTextDisable)
+        )
+
+        monitoringImage!!.setColorFilter(
+            resources.getColor(R.color.menuTextDisable),
+            PorterDuff.Mode.SRC_IN
+        )
+        settingsImage!!.setColorFilter(
+            resources.getColor(R.color.menuTextDisable),
+            PorterDuff.Mode.SRC_IN
+        )
+        rouletteImage!!.setColorFilter(
+            resources.getColor(R.color.menuTextDisable),
+            PorterDuff.Mode.SRC_IN
+        )
+        donateImage!!.setColorFilter(
+            resources.getColor(R.color.menuTextDisable),
+            PorterDuff.Mode.SRC_IN
+        )
+
         linearLayout!!.alpha = 1.0f
-        textView!!.setTextColor(resources.getColor(R.color.menuTextEnable))
-        imageView!!.setColorFilter(resources.getColor(R.color.menuTextEnable), PorterDuff.Mode.SRC_IN)
+        textView!!.setTextColor(
+            resources.getColor(R.color.menuTextEnable)
+        )
+        imageView!!.setColorFilter(
+            resources.getColor(R.color.menuTextEnable),
+            PorterDuff.Mode.SRC_IN
+        )
     }
 
     private fun replaceFragment(fragment: Fragment?) {
-        supportFragmentManager.beginTransaction().replace(R.id.container, fragment!!).commitAllowingStateLoss()
+        supportFragmentManager
+            .beginTransaction()
+            .replace(R.id.container, fragment!!)
+            .commitAllowingStateLoss()
     }
 
     public override fun onDestroy() {
@@ -535,7 +625,6 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_GAME_DATA_ZIP = 5206
         private const val PRIVATE_DATA_MARKER = ".betatester_data_ready"
 
-        // Servidor SA-MP direto do Beta Tester
         private const val SERVER_IP = "149.56.41.51"
         private const val SERVER_PORT = "7774"
     }
