@@ -1,8 +1,10 @@
+
 package com.russia.launcher.ui.activity
 
 import android.content.Intent
 import android.graphics.PorterDuff
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.os.Bundle
 import android.view.View
 import android.view.animation.Animation
@@ -160,27 +162,174 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /*
-     * NAVARA DEVELOPER MODE:
-     * الضغط على PLAY يشغّل عميل اللعبة مباشرةً.
-     * لا نطلب من المطوّر اختيار ZIP في كل مرة.
-     */
     private fun startGame() {
-        launchGameAfterDataReady()
+        if (isPrivateGameDataReady()) {
+            launchGameAfterDataReady()
+        } else {
+            selectGameFolder()
+        }
     }
 
-    /*
-     * تُركت دوال تجهيز البيانات القديمة موجودة حتى لا نحذف
-     * وظائف المشروع الحالية. لم تعد شرطاً يمنع الضغط على PLAY.
-     */
     private fun isPrivateGameDataReady(): Boolean {
         val marker = File(filesDir, PRIVATE_DATA_MARKER)
         val americanGxt = File(filesDir, "TEXT/AMERICAN.GXT")
         val mobileTxt = File(filesDir, "texdb/mobile/mobile.txt")
 
-        return marker.exists() &&
+        return marker.isFile &&
             americanGxt.isFile &&
-            mobileTxt.isFile
+            mobileTxt.isFile &&
+            File(filesDir, "models").isDirectory &&
+            File(filesDir, "data").isDirectory
+    }
+
+    private fun selectGameFolder() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, REQUEST_GAME_FOLDER)
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "تعذّر فتح اختيار مجلد اللعبة: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun installGameFolder(treeUri: Uri) {
+        val progressDialog =
+            findViewById<ConstraintLayout>(R.id.progressDialog)
+        progressDialog?.visibility = View.VISIBLE
+        playButton?.isEnabled = false
+
+        Toast.makeText(
+            this,
+            "جارٍ نسخ ملفات اللعبة. قد تستغرق العملية وقتاً.",
+            Toast.LENGTH_LONG
+        ).show()
+
+        Thread {
+            try {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        treeUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                    // نتابع بصلاحية القراءة الحالية.
+                }
+
+                File(filesDir, PRIVATE_DATA_MARKER).delete()
+                val rootId = DocumentsContract.getTreeDocumentId(treeUri)
+                copyGameFolderContents(treeUri, rootId, filesDir)
+
+                if (!isPrivateGameDataReadyWithoutMarker()) {
+                    throw IllegalStateException(
+                        "الملفات المطلوبة غير موجودة. اختَر المجلد الذي يحتوي مباشرةً على models وdata وtexdb وtext."
+                    )
+                }
+
+                File(filesDir, PRIVATE_DATA_MARKER).writeText("ok")
+                runOnUiThread {
+                    progressDialog?.visibility = View.GONE
+                    playButton?.isEnabled = true
+                    Toast.makeText(
+                        this,
+                        "اكتمل تجهيز ملفات GTA SA",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    launchGameAfterDataReady()
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    progressDialog?.visibility = View.GONE
+                    playButton?.isEnabled = true
+                    Toast.makeText(
+                        this,
+                        "فشل تجهيز الملفات: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun isPrivateGameDataReadyWithoutMarker(): Boolean {
+        return File(filesDir, "TEXT/AMERICAN.GXT").isFile &&
+            File(filesDir, "texdb/mobile/mobile.txt").isFile &&
+            File(filesDir, "models").isDirectory &&
+            File(filesDir, "data").isDirectory
+    }
+
+    private fun copyGameFolderContents(
+        treeUri: Uri,
+        parentDocumentId: String,
+        destination: File
+    ) {
+        val childrenUri =
+            DocumentsContract.buildChildDocumentsUriUsingTree(
+                treeUri,
+                parentDocumentId
+            )
+        val columns = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+        val cursor = contentResolver.query(
+            childrenUri, columns, null, null, null
+        ) ?: throw IllegalStateException("تعذّرت قراءة مجلد اللعبة")
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val documentId = it.getString(0)
+                val originalName = it.getString(1) ?: continue
+                val mimeType = it.getString(2)
+                if (originalName.isBlank() ||
+                    originalName == "." || originalName == ".."
+                ) continue
+
+                val isRoot =
+                    destination.canonicalFile == filesDir.canonicalFile
+                val name = if (
+                    isRoot && originalName.equals("text", ignoreCase = true)
+                ) "TEXT" else originalName
+
+                val output = File(destination, name).canonicalFile
+                val allowedRoot = filesDir.canonicalPath + File.separator
+                if (output.path != filesDir.canonicalPath &&
+                    !output.path.startsWith(allowedRoot)
+                ) {
+                    throw SecurityException("مسار ملف غير آمن")
+                }
+
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    if (!output.exists() && !output.mkdirs()) {
+                        throw IllegalStateException("تعذّر إنشاء المجلد: $name")
+                    }
+                    copyGameFolderContents(treeUri, documentId, output)
+                } else {
+                    val sourceUri =
+                        DocumentsContract.buildDocumentUriUsingTree(
+                            treeUri, documentId
+                        )
+                    output.parentFile?.let { parent ->
+                        if (!parent.exists() && !parent.mkdirs()) {
+                            throw IllegalStateException("تعذّر إنشاء مجلد الملفات")
+                        }
+                    }
+                    val input = contentResolver.openInputStream(sourceUri)
+                        ?: throw IllegalStateException("تعذّرت قراءة الملف: $name")
+                    input.use { source ->
+                        output.outputStream().buffered().use { target ->
+                            source.copyTo(target)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun selectGameDataZip() {
@@ -213,6 +362,13 @@ class MainActivity : AppCompatActivity() {
         data: Intent?
     ) {
         super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == REQUEST_GAME_FOLDER) {
+            if (resultCode != RESULT_OK) return
+            val treeUri = data?.data ?: return
+            installGameFolder(treeUri)
+            return
+        }
 
         if (
             requestCode != REQUEST_GAME_DATA_ZIP ||
@@ -470,9 +626,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /*
-     * يجهّز إعدادات العميل ثم يفتح شاشة اللعبة مباشرةً.
-     */
     private fun launchGameAfterDataReady() {
         ensureAdjustableConfig()
 
@@ -503,10 +656,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        /*
-         * إعدادات الاتصال الحالية للمشروع.
-         * هذه القيم لا تنشئ سيرفراً جديداً؛ السيرفر يجب أن يكون متاحاً.
-         */
         NativeStorage.addClientProperty("name", nickname, this)
         NativeStorage.addClientProperty("server", "1", this)
         NativeStorage.addClientProperty("ip", SERVER_IP, this)
@@ -623,6 +772,7 @@ class MainActivity : AppCompatActivity() {
         private const val SERVER_LOCKED_VALUE = 1
         private const val TEST_MODE_ON_VALUE = "1"
         private const val REQUEST_GAME_DATA_ZIP = 5206
+        private const val REQUEST_GAME_FOLDER = 5207
         private const val PRIVATE_DATA_MARKER = ".betatester_data_ready"
 
         private const val SERVER_IP = "149.56.41.51"
